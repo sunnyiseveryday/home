@@ -54,6 +54,20 @@ export const constantRoutes = [
       meta: { title: '首页', icon: 'dashboard', affix: true }
     }]
   },
+  {
+    path: '/accountBook',
+    component: Layout,
+    redirect: '/accountBook/index',
+    name: '记账本',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/accountBook/index.vue'),
+        name: 'AccountBook',
+        meta: { title: '记账本', icon: 'el-icon-s-data' }
+      }
+    ]
+  },
 
   {
     path: '/example',
