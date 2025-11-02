@@ -7,3 +7,17 @@ export function addRecords(data) {
     data
   })
 }
+export function getRecords(data) {
+  return request({
+    url: '/accountBook/getRecords',
+    method: 'get',
+    params: data
+  })
+}
+export function getStatistics(data) {
+  return request({
+    url: '/accountBook/getStatistics',
+    method: 'get',
+    params: data
+  })
+}

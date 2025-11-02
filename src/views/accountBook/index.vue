@@ -119,28 +119,75 @@
     </el-card>
 
     <!-- 统计信息 -->
+    <!-- 统计信息 -->
     <el-card class="mb-3">
       <div slot="header">
         <span>统计信息</span>
       </div>
+      <el-row :gutter="20" class="mb-3">
+        <el-col :span="6">
+          <el-select v-model="statisticType" placeholder="请选择统计类型">
+            <el-option label="按周" value="week" />
+            <el-option label="按月" value="month" />
+            <el-option label="按年" value="year" />
+          </el-select>
+        </el-col>
+
+        <!-- 周选择器 -->
+        <el-col v-if="statisticType === 'week'" :span="6">
+          <el-date-picker
+            v-model="selectedWeek"
+            type="week"
+            format="yyyy 第 WW 周"
+            value-format="yyyy-MM-dd"
+            placeholder="选择周"
+            @change="loadStatistics"
+          />
+        </el-col>
+
+        <!-- 月选择器 -->
+        <el-col v-else-if="statisticType === 'month'" :span="6">
+          <el-date-picker
+            v-model="selectedMonth"
+            type="month"
+            format="yyyy-MM"
+            value-format="yyyy-MM"
+            placeholder="选择月份"
+            @change="loadStatistics"
+          />
+        </el-col>
+
+        <!-- 年选择器 -->
+        <el-col v-else-if="statisticType === 'year'" :span="6">
+          <el-date-picker
+            v-model="selectedYear"
+            type="year"
+            format="yyyy"
+            value-format="yyyy"
+            placeholder="选择年份"
+            @change="loadStatistics"
+          />
+        </el-col>
+      </el-row>
+      <!-- 统计结果展示部分保持不变 -->
       <el-row :gutter="20">
         <el-col :span="8">
           <div class="statistic-item">
             <div class="statistic-label">总收入</div>
-            <div class="statistic-value income">¥{{ totalIncome.toFixed(2) }}</div>
+            <div class="statistic-value income">¥{{ statistics.totalIncome.toFixed(2) }}</div>
           </div>
         </el-col>
         <el-col :span="8">
           <div class="statistic-item">
             <div class="statistic-label">总支出</div>
-            <div class="statistic-value expense">¥{{ totalExpense.toFixed(2) }}</div>
+            <div class="statistic-value expense">¥{{ statistics.totalExpense.toFixed(2) }}</div>
           </div>
         </el-col>
         <el-col :span="8">
           <div class="statistic-item">
             <div class="statistic-label">结余</div>
-            <div class="statistic-value balance" :class="{ negative: balance < 0 }">
-              ¥{{ balance.toFixed(2) }}
+            <div class="statistic-value balance" :class="{ negative: statistics.balance < 0 }">
+              ¥{{ statistics.balance.toFixed(2) }}
             </div>
           </div>
         </el-col>
@@ -152,8 +199,8 @@
       <div slot="header">
         <span>记账记录</span>
       </div>
-      <el-table :data="records" style="width: 100%" border>
-        <el-table-column prop="date" label="日期" width="120" />
+      <el-table v-loading="loading" :data="records" style="width: 100%" border>
+        <el-table-column prop="recordDate" label="日期" width="120" />
         <el-table-column prop="type" label="类型" width="80">
           <template slot-scope="scope">
             <el-tag :type="scope.row.type === 'income' ? 'success' : 'danger'">
@@ -198,8 +245,9 @@
         <el-pagination
           background
           layout="prev, pager, next"
-          :total="records.length"
+          :total="totalRecords"
           :page-size="pageSize"
+          :current-page="currentPage"
           @current-change="handlePageChange"
         />
       </div>
@@ -258,7 +306,7 @@
 </template>
 
 <script>
-import { addRecords } from '@/api/accountBook'
+import { addRecords, getRecords, getStatistics } from '@/api/accountBook'
 export default {
   name: 'AccountBook',
   data() {
@@ -282,14 +330,25 @@ export default {
         recordDate: new Date().toISOString().split('T')[0],
         description: ''
       },
+      statisticType: 'month', // 默认按月统计
+      selectedWeek: null, // 选中的周
+      selectedMonth: new Date(), // 选中的月份，默认当前月份
+      selectedYear: new Date(), // 选中的年份，默认当前年份
+      statistics: {
+        totalIncome: 0,
+        totalExpense: 0,
+        balance: 0
+      },
       dialogVisible: false,
       records: [],
+      totalRecords: 0, // 添加总记录数
       pageSize: 10,
       currentPage: 1,
       categories: {
         income: ['工资', '奖金', '投资收益', '其他'],
         expense: ['餐饮', '交通', '购物', '娱乐', '住房', '医疗', '教育', '其他']
-      }
+      },
+      loading: false
     }
   },
   computed: {
@@ -309,7 +368,7 @@ export default {
   },
   created() {
     // 初始化一些示例数据
-    this.initData()
+    this.initData(this.currentPage, this.pageSize)
   },
   methods: {
     addRecord() {
@@ -368,6 +427,37 @@ export default {
         reimbursementDate: ''
       }
     },
+    onStatisticTypeChange() {
+      // 重置时间选择
+      this.selectedWeek = null
+      this.selectedMonth = new Date()
+      this.selectedYear = new Date()
+      this.loadStatistics()
+    },
+
+    loadStatistics() {
+      const params = { type: this.statisticType }
+
+      // 根据统计类型添加对应的时间参数
+      if (this.statisticType === 'week' && this.selectedWeek) {
+        params.week = this.selectedWeek
+      } else if (this.statisticType === 'month' && this.selectedMonth) {
+        params.month = this.selectedMonth
+      } else if (this.statisticType === 'year' && this.selectedYear) {
+        params.year = this.selectedYear
+      }
+      getStatistics(params)
+        .then(response => {
+          if (response.code === 200) {
+            this.statistics = response.data
+          } else {
+            this.$message.error('统计信息加载失败: ' + response.message)
+          }
+        })
+        .catch(error => {
+          this.$message.error('统计信息加载失败: ' + error.message)
+        })
+    },
 
     editRecord(record) {
       this.editForm = { ...record }
@@ -401,36 +491,34 @@ export default {
 
     handlePageChange(page) {
       this.currentPage = page
+      this.initData(page, this.pageSize)
     },
 
-    initData() {
-      // 示例数据
-      this.records = [
-        {
-          id: 1,
-          type: 'expense',
-          amount: 36.5,
-          category: '餐饮',
-          recordDate: '2023-05-15',
-          description: '午餐'
-        },
-        {
-          id: 2,
-          type: 'expense',
-          amount: 12.8,
-          category: '交通',
-          recordDate: '2023-05-15',
-          description: '地铁'
-        },
-        {
-          id: 3,
-          type: 'income',
-          amount: 8000,
-          category: '工资',
-          recordDate: '2023-05-01',
-          description: '五月份工资'
-        }
-      ]
+    initData(page = 1, pageSize = this.pageSize) {
+      this.loading = true
+      // 从数据库获取分页数据
+      getRecords({ page, pageSize })
+        .then(response => {
+          if (response.code === 200) {
+            this.records = response.data.records.map(record => ({
+              ...record,
+              type: record.type === 1 ? 'income' : 'expense',
+              isReimbursable: record.isReimbursable === 1,
+              hasInvoice: record.hasInvoice === 1
+            }))
+            // 假设后端返回总记录数
+            this.totalRecords = response.data.total
+            this.loadStatistics()
+          } else {
+            this.$message.error('数据加载失败: ' + response.message)
+          }
+        })
+        .catch(error => {
+          this.$message.error('数据加载失败: ' + error.message)
+        })
+        .finally(() => {
+          this.loading = false
+        })
     }
   }
 }
