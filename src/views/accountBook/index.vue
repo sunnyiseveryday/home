@@ -126,7 +126,7 @@
       </div>
       <el-row :gutter="20" class="mb-3">
         <el-col :span="6">
-          <el-select v-model="statisticType" placeholder="请选择统计类型">
+          <el-select v-model="statisticType" placeholder="请选择统计类型" @change="onStatisticTypeChange">
             <el-option label="按周" value="week" />
             <el-option label="按月" value="month" />
             <el-option label="按年" value="year" />
@@ -332,7 +332,7 @@ export default {
       },
       statisticType: 'month', // 默认按月统计
       selectedWeek: null, // 选中的周
-      selectedMonth: new Date(), // 选中的月份，默认当前月份
+      selectedMonth: new Date().toISOString().substring(0, 7), // 选中的月份，默认当前月份
       selectedYear: new Date(), // 选中的年份，默认当前年份
       statistics: {
         totalIncome: 0,
@@ -369,6 +369,7 @@ export default {
   created() {
     // 初始化一些示例数据
     this.initData(this.currentPage, this.pageSize)
+    this.loadStatistics()
   },
   methods: {
     addRecord() {
@@ -430,9 +431,8 @@ export default {
     onStatisticTypeChange() {
       // 重置时间选择
       this.selectedWeek = null
-      this.selectedMonth = new Date()
-      this.selectedYear = new Date()
-      this.loadStatistics()
+      this.selectedMonth = null
+      this.selectedYear = null
     },
 
     loadStatistics() {
@@ -494,10 +494,23 @@ export default {
       this.initData(page, this.pageSize)
     },
 
-    initData(page = 1, pageSize = this.pageSize) {
+    initData(page = 1, pageSize = this.pageSize, filters = {}) {
       this.loading = true
       // 从数据库获取分页数据
-      getRecords({ page, pageSize })
+      const params = { page, pageSize, ...filters }
+
+      // 添加统计参数
+      if (this.statisticType) {
+        params.statisticType = this.statisticType
+        if (this.statisticType === 'week' && this.selectedWeek) {
+          params.week = this.selectedWeek
+        } else if (this.statisticType === 'month' && this.selectedMonth) {
+          params.month = this.selectedMonth
+        } else if (this.statisticType === 'year' && this.selectedYear) {
+          params.year = this.selectedYear
+        }
+      }
+      getRecords(params)
         .then(response => {
           if (response.code === 200) {
             this.records = response.data.records.map(record => ({
@@ -508,7 +521,6 @@ export default {
             }))
             // 假设后端返回总记录数
             this.totalRecords = response.data.total
-            this.loadStatistics()
           } else {
             this.$message.error('数据加载失败: ' + response.message)
           }
