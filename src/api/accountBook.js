@@ -21,3 +21,27 @@ export function getStatistics(data) {
     params: data
   })
 }
+
+export function updateRecord(data) {
+  return request({
+    url: '/accountBook/updateRecord',
+    method: 'post',
+    data
+  })
+}
+
+// 分类相关接口
+export function getCategoryTree() {
+  return request({
+    url: '/accountBook/getCategoryTree',
+    method: 'get'
+  })
+}
+
+export function addCategory(data) {
+  return request({
+    url: '/accountBook/addCategory',
+    method: 'post',
+    data
+  })
+}

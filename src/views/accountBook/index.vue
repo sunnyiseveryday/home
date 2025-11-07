@@ -10,9 +10,24 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="类型">
-              <el-select v-model="form.type" placeholder="请选择类型">
+              <el-select v-model="form.type" placeholder="请选择类型" @change="onTypeChange">
                 <el-option label="收入" value="income" />
                 <el-option label="支出" value="expense" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="分类">
+              <el-select v-model="form.category" placeholder="请选择分类">
+                <el-option
+                  v-for="item in categories[form.type]"
+                  :key="item"
+                  :label="item"
+                  :value="item"
+                />
+                <el-option :value="undefined" disabled>
+                  <el-button type="text" @click="openAddCategoryDialog()">+ 添加分类</el-button>
+                </el-option>
               </el-select>
             </el-form-item>
           </el-col>
@@ -28,21 +43,7 @@
               />
             </el-form-item>
           </el-col>
-
-          <el-col :span="8">
-            <el-form-item label="分类">
-              <el-select v-model="form.category" placeholder="请选择分类">
-                <el-option
-                  v-for="item in categories[form.type]"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="日期">
@@ -54,13 +55,13 @@
               />
             </el-form-item>
           </el-col>
-
           <el-col :span="12">
             <el-form-item label="备注">
               <el-input v-model="form.description" placeholder="请输入备注" />
             </el-form-item>
           </el-col>
         </el-row>
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="是否可报销">
@@ -141,7 +142,7 @@
             format="yyyy 第 WW 周"
             value-format="yyyy-MM-dd"
             placeholder="选择周"
-            @change="loadStatistics"
+            @change="onTypeSelect"
           />
         </el-col>
 
@@ -153,7 +154,7 @@
             format="yyyy-MM"
             value-format="yyyy-MM"
             placeholder="选择月份"
-            @change="loadStatistics"
+            @change="onTypeSelect"
           />
         </el-col>
 
@@ -165,7 +166,7 @@
             format="yyyy"
             value-format="yyyy"
             placeholder="选择年份"
-            @change="loadStatistics"
+            @change="onTypeSelect"
           />
         </el-col>
       </el-row>
@@ -254,10 +255,11 @@
     </el-card>
 
     <!-- 编辑对话框 -->
+    <!-- 编辑对话框 -->
     <el-dialog title="编辑记录" :visible.sync="dialogVisible" width="40%">
-      <el-form :model="editForm" label-width="80px">
+      <el-form :model="editForm" label-width="120px">
         <el-form-item label="类型">
-          <el-select v-model="editForm.type" placeholder="请选择类型">
+          <el-select v-model="editForm.type" placeholder="请选择类型" @change="onEditTypeChange">
             <el-option label="收入" value="income" />
             <el-option label="支出" value="expense" />
           </el-select>
@@ -280,6 +282,9 @@
               :label="item"
               :value="item"
             />
+            <el-option :value="undefined" disabled>
+              <el-button type="text" @click="openAddCategoryDialog()">+ 添加分类</el-button>
+            </el-option>
           </el-select>
         </el-form-item>
 
@@ -295,6 +300,43 @@
         <el-form-item label="备注">
           <el-input v-model="editForm.description" placeholder="请输入备注" />
         </el-form-item>
+
+        <!-- 报销相关字段，仅在支出类型时显示 -->
+        <template v-if="editForm.type === 'expense'">
+          <el-form-item label="是否可报销">
+            <el-switch v-model="editForm.isReimbursable" />
+          </el-form-item>
+
+          <el-form-item v-if="editForm.isReimbursable" label="是否有发票">
+            <el-switch v-model="editForm.hasInvoice" />
+          </el-form-item>
+
+          <el-form-item v-if="editForm.isReimbursable && editForm.hasInvoice" label="发票日期">
+            <el-date-picker
+              v-model="editForm.invoiceDate"
+              type="date"
+              placeholder="选择发票日期"
+              value-format="yyyy-MM-dd"
+            />
+          </el-form-item>
+
+          <el-form-item v-if="editForm.isReimbursable" label="报销状态">
+            <el-select v-model="editForm.reimbursementStatus" placeholder="请选择报销状态">
+              <el-option label="未提交" value="0" />
+              <el-option label="已提交" value="1" />
+              <el-option label="报销完成" value="2" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="editForm.isReimbursable && editForm.reimbursementStatus === '2'" label="报销完成时间">
+            <el-date-picker
+              v-model="editForm.reimbursementDate"
+              type="date"
+              placeholder="选择报销完成时间"
+              value-format="yyyy-MM-dd"
+            />
+          </el-form-item>
+        </template>
       </el-form>
 
       <span slot="footer" class="dialog-footer">
@@ -302,11 +344,39 @@
         <el-button type="primary" @click="updateRecord">确 定</el-button>
       </span>
     </el-dialog>
+    <!-- 添加分类对话框 -->
+    <el-dialog title="添加分类" :visible.sync="categoryDialogVisible" width="30%">
+      <el-form :model="categoryForm" label-width="80px">
+        <el-form-item label="类型">
+          <el-select v-model="categoryForm.type" placeholder="请选择类型">
+            <el-option label="收入" value="income" />
+            <el-option label="支出" value="expense" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="上级分类">
+          <el-select v-model="categoryForm.parentId" placeholder="请选择上级分类(可选)" clearable>
+            <el-option
+              v-for="category in categoryTree.filter(c => c.type === (categoryForm.type === 'income' ? 1 : 2))"
+              :key="category.id"
+              :label="category.name"
+              :value="category.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="分类名称">
+          <el-input v-model="categoryForm.name" placeholder="请输入分类名称" />
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="categoryDialogVisible = false">取 消</el-button>
+        <el-button type="primary" @click="addCategory">确 定</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { addRecords, getRecords, getStatistics } from '@/api/accountBook'
+import { addRecords, getRecords, getStatistics, updateRecord, getCategoryTree, addCategory } from '@/api/accountBook'
 export default {
   name: 'AccountBook',
   data() {
@@ -328,8 +398,21 @@ export default {
         amount: 0,
         category: '',
         recordDate: new Date().toISOString().split('T')[0],
-        description: ''
+        description: '',
+        isReimbursable: false, // 是否可以报销
+        hasInvoice: false, // 是否取得发票
+        invoiceDate: '', // 发票日期
+        reimbursementStatus: '0', // 报销状态
+        reimbursementDate: '' // 报销完成时间
       },
+      // 分类管理表单
+      categoryForm: {
+        parentId: 0,
+        name: '',
+        type: 'expense' // 默认支出类型
+      },
+      categoryDialogVisible: false,
+      categoryTree: [], // 分类树形结构
       statisticType: 'month', // 默认按月统计
       selectedWeek: null, // 选中的周
       selectedMonth: new Date().toISOString().substring(0, 7), // 选中的月份，默认当前月份
@@ -345,8 +428,8 @@ export default {
       pageSize: 10,
       currentPage: 1,
       categories: {
-        income: ['工资', '奖金', '投资收益', '其他'],
-        expense: ['餐饮', '交通', '购物', '娱乐', '住房', '医疗', '教育', '其他']
+        income: [],
+        expense: []
       },
       loading: false
     }
@@ -370,8 +453,99 @@ export default {
     // 初始化一些示例数据
     this.initData(this.currentPage, this.pageSize)
     this.loadStatistics()
+    this.loadCategories()
   },
   methods: {
+    // 加载分类数据
+    loadCategories() {
+      getCategoryTree().then(response => {
+        if (response.code === 200) {
+          this.categoryTree = response.data
+          // 构建分类选项
+          this.buildCategoryOptions()
+        }
+      }).catch(error => {
+        console.error('加载分类失败:', error)
+      })
+    },
+
+    // 构建分类选项
+    buildCategoryOptions() {
+      const incomeCategories = []
+      const expenseCategories = []
+
+      this.categoryTree.forEach(category => {
+        if (category.type === 1) { // 收入类型
+          incomeCategories.push(category.name)
+          // 添加子分类
+          if (category.children && category.children.length > 0) {
+            category.children.forEach(child => {
+              incomeCategories.push(child.name)
+            })
+          }
+        } else if (category.type === 2) { // 支出类型
+          expenseCategories.push(category.name)
+          // 添加子分类
+          if (category.children && category.children.length > 0) {
+            category.children.forEach(child => {
+              expenseCategories.push(child.name)
+            })
+          }
+        }
+      })
+
+      this.categories.income = incomeCategories
+      this.categories.expense = expenseCategories
+    },
+
+    // 打开添加分类对话框
+    openAddCategoryDialog() {
+      this.categoryForm = {
+        parentId: 0,
+        name: '',
+        type: this.form.type // 使用当前选中的类型
+      }
+      this.categoryDialogVisible = true
+    },
+
+    // 添加分类
+    addCategory() {
+      if (!this.categoryForm.name) {
+        this.$message.warning('请输入分类名称')
+        return
+      }
+
+      // 转换类型为后端需要的格式
+      const categoryData = {
+        ...this.categoryForm,
+        type: this.categoryForm.type === 'income' ? 1 : 2
+      }
+
+      addCategory(categoryData).then(response => {
+        if (response.code === 200) {
+          this.$message.success('分类添加成功')
+          this.categoryDialogVisible = false
+          // 重新加载分类
+          this.loadCategories()
+        } else {
+          this.$message.error('分类添加失败: ' + response.message)
+        }
+      }).catch(error => {
+        this.$message.error('分类添加失败: ' + error.message)
+      })
+    },
+
+    // 当类型改变时，清空分类选择
+    onTypeChange() {
+      this.form.category = ''
+      this.categoryForm.type = this.form.type
+    },
+
+    // 编辑记录时类型改变处理
+    onEditTypeChange() {
+      this.editForm.category = ''
+    },
+
     addRecord() {
       if (!this.form.amount || !this.form.category) {
         this.$message.warning('请填写金额和分类')
@@ -379,7 +553,7 @@ export default {
       }
 
       // 验证报销相关字段
-      if (this.form.reimbursable) {
+      if (this.form.isReimbursable) {
         if (this.form.reimbursementStatus === '2' && !this.form.reimbursementDate) {
           this.$message.warning('请选择报销完成时间')
           return
@@ -401,8 +575,9 @@ export default {
       addRecords(newRecord)
         .then(response => {
           if (response.code === 200) {
-            // 后端返回完整记录（包括ID）
-            this.records.unshift(response.data)
+            // 重新加载数据而不是直接添加到records数组
+            this.initData(this.currentPage, this.pageSize)
+            this.loadStatistics()
             this.resetForm()
             this.$message.success('添加成功')
           } else {
@@ -434,7 +609,10 @@ export default {
       this.selectedMonth = null
       this.selectedYear = null
     },
-
+    onTypeSelect() {
+      this.loadStatistics()
+      this.initData(1, this.pageSize)
+    },
     loadStatistics() {
       const params = { type: this.statisticType }
 
@@ -465,12 +643,50 @@ export default {
     },
 
     updateRecord() {
-      const index = this.records.findIndex(item => item.id === this.editForm.id)
-      if (index !== -1) {
-        this.records.splice(index, 1, { ...this.editForm, amount: parseFloat(this.editForm.amount) })
-        this.dialogVisible = false
-        this.$message.success('更新成功')
+      // 处理数据格式
+      const updatedRecord = {
+        ...this.editForm,
+        amount: parseFloat(this.editForm.amount),
+        // 转换布尔值为数字格式以匹配后端要求
+        isReimbursable: this.editForm.isReimbursable === true ? 1 : 0,
+        hasInvoice: this.editForm.hasInvoice === true ? 1 : 0,
+        // 类型转换
+        type: this.editForm.type === 'income' ? 1 : 2
       }
+
+      // 如果是收入类型，清除报销相关字段
+      if (this.editForm.type === 'income') {
+        updatedRecord.isReimbursable = 0
+        updatedRecord.hasInvoice = 0
+        updatedRecord.invoiceDate = ''
+        updatedRecord.reimbursementStatus = '0'
+        updatedRecord.reimbursementDate = ''
+      }
+      // 调用API更新记录
+      updateRecord(updatedRecord)
+        .then(response => {
+          if (response.code === 200) {
+            // 更新成功后更新本地数据
+            const index = this.records.findIndex(item => item.id === this.editForm.id)
+            if (index !== -1) {
+              this.records.splice(index, 1, {
+                ...this.editForm,
+                type: this.editForm.type,
+                isReimbursable: this.editForm.isReimbursable,
+                hasInvoice: this.editForm.hasInvoice,
+                amount: parseFloat(this.editForm.amount),
+                reimbursementStatus: this.editForm.reimbursementStatus
+              })
+            }
+            this.dialogVisible = false
+            this.$message.success('更新成功')
+          } else {
+            this.$message.error('更新失败: ' + response.message)
+          }
+        })
+        .catch(error => {
+          this.$message.error('更新失败: ' + error.message)
+        })
     },
 
     deleteRecord(record) {
@@ -517,7 +733,8 @@ export default {
               ...record,
               type: record.type === 1 ? 'income' : 'expense',
               isReimbursable: record.isReimbursable === 1,
-              hasInvoice: record.hasInvoice === 1
+              hasInvoice: record.hasInvoice === 1,
+              reimbursementStatus: record.reimbursementStatus ? record.reimbursementStatus.toString() : '0'
             }))
             // 假设后端返回总记录数
             this.totalRecords = response.data.total
