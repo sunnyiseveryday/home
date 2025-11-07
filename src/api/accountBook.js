@@ -31,9 +31,9 @@ export function updateRecord(data) {
 }
 
 // 分类相关接口
-export function getCategoryTree() {
+export function getCategoryTree(data) {
   return request({
-    url: '/accountBook/getCategoryTree',
+    url: '/InExCategory/tree',
     method: 'get'
   })
 }

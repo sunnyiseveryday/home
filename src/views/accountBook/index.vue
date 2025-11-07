@@ -496,6 +496,20 @@ export default {
 
       this.categories.income = incomeCategories
       this.categories.expense = expenseCategories
+      // 确保当前表单中的分类仍然有效
+      this.validateCurrentFormCategories()
+    },
+
+    // 验证当前表单中的分类是否仍然有效
+    validateCurrentFormCategories() {
+      // 验证新增记录表单
+      if (this.form.category && !this.categories[this.form.type].includes(this.form.category)) {
+        this.form.category = ''
+      }
+      // 验证编辑记录表单
+      if (this.editForm.category && !this.categories[this.editForm.type].includes(this.editForm.category)) {
+        this.editForm.category = ''
+      }
     },
 
     // 打开添加分类对话框
@@ -543,7 +557,20 @@ export default {
 
     // 编辑记录时类型改变处理
     onEditTypeChange() {
+      // 确保分类与类型匹配
       this.editForm.category = ''
+      // 验证当前类型是否与所选分类匹配
+      this.validateCategoryType(this.editForm)
+    },
+
+    // 验证分类与类型是否匹配
+    validateCategoryType(form) {
+      // 获取当前类型对应的分类列表
+      const currentCategories = this.categories[form.type]
+      // 如果已选择分类且不在当前类型分类列表中，则清空
+      if (form.category && !currentCategories.includes(form.category)) {
+        form.category = ''
+      }
     },
 
     addRecord() {
@@ -570,6 +597,12 @@ export default {
         isReimbursable: this.form.isReimbursable === true ? 1 : 0,
         hasInvoice: this.form.hasInvoice === true ? 1 : 0,
         amount: parseFloat(this.form.amount)
+      }
+
+      // 确保分类与类型匹配
+      if (!this.categories[this.form.type].includes(this.form.category)) {
+        this.$message.warning('所选分类与类型不匹配，请重新选择分类')
+        return
       }
 
       addRecords(newRecord)
@@ -643,6 +676,12 @@ export default {
     },
 
     updateRecord() {
+      // 确保分类与类型匹配
+      if (!this.categories[this.editForm.type].includes(this.editForm.category)) {
+        this.$message.warning('所选分类与类型不匹配，请重新选择分类')
+        return
+      }
+
       // 处理数据格式
       const updatedRecord = {
         ...this.editForm,
